@@ -1,0 +1,61 @@
+{
+  "name": "Hotel Billing Manager",
+  "short_name": "Hotel Billing",
+  "description": "100% Offline Progressive Web App for Hotel & Restaurant Billing POS with Tables, Rooms, KOT, Dynamic UPI QR, and Invoices.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#0f766e",
+  "categories": ["business", "finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Bill / POS",
+      "short_name": "POS",
+      "description": "Open POS Terminal",
+      "url": "/?tab=pos",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Table Management",
+      "short_name": "Tables",
+      "description": "Manage Tables T1-T20",
+      "url": "/?tab=tables",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Room Service",
+      "short_name": "Rooms",
+      "description": "Room Service Orders",
+      "url": "/?tab=rooms",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
