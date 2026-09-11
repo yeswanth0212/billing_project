@@ -133,9 +133,12 @@ interface BillingContextType {
   // Settings & DB Management
   updateSettings: (newSettings: HotelSettings) => Promise<void>;
   downloadBackupJSON: () => Promise<void>;
-  restoreDatabase: (jsonStr: string) => Promise<void>;
+  restoreDatabase: (jsonStr: string) => Promise<{ recordCount: number }>;
   clearAllDatabaseData: () => Promise<void>;
   refreshData: () => Promise<void>;
+
+  // Network & Connectivity
+  isOnline: boolean;
 
   // Toasts
   toasts: ToastNotification[];
@@ -182,6 +185,7 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [activeKotReceipt, setActiveKotReceipt] = useState<KOT | null>(null);
   const [receiptFormat, setReceiptFormat] = useState<ReceiptPrintFormat>('80mm');
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = 't_' + Date.now() + Math.random().toString(36).substring(2, 5);
@@ -194,6 +198,26 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const dismissToast = (id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   };
+
+  // Online / Offline Connectivity Monitor
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      showToast('🟢 Online: Internet connection available', 'success');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      showToast('🟢 Offline Mode: You are offline. Billing will continue using local storage.', 'info');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const refreshData = async () => {
     try {
@@ -681,7 +705,29 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   ): Promise<Bill | null> => {
     if (cart.length === 0) {
-      showToast('No items in order to settle', 'error');
+      showToast('Unable to complete bill: Order is empty', 'error');
+      return null;
+    }
+
+    // Validate each cart item
+    for (const item of cart) {
+      if (!item.quantity || item.quantity <= 0) {
+        showToast(`Invalid quantity for dish: ${item.name}`, 'error');
+        return null;
+      }
+      if (item.price < 0) {
+        showToast(`Invalid price for dish: ${item.name}`, 'error');
+        return null;
+      }
+    }
+
+    if (grandTotal < 0 || isNaN(grandTotal)) {
+      showToast('Invalid bill total calculation', 'error');
+      return null;
+    }
+
+    if (!paymentMethod) {
+      showToast('Please select a payment method', 'error');
       return null;
     }
 
@@ -777,6 +823,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Cancel Bill with reason
   const cancelBill = async (billId: string, reason: string): Promise<boolean> => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to cancel bills', 'error');
+      return false;
+    }
+
     const target = bills.find(b => b.id === billId);
     if (!target) return false;
 
@@ -806,6 +857,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Refund Bill
   const refundBill = async (billId: string, reason: string): Promise<boolean> => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to refund bills', 'error');
+      return false;
+    }
+
     const target = bills.find(b => b.id === billId);
     if (!target) return false;
 
@@ -850,6 +906,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Menu CRUD
   const addMenuItem = async (itemData: Omit<MenuItem, 'id'>) => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to add dishes', 'error');
+      return;
+    }
+
     const newItem: MenuItem = { ...itemData, id: 'item_' + Date.now() };
     const updated = [...menuItems, newItem];
     setMenuItems(updated);
@@ -866,6 +927,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateMenuItem = async (item: MenuItem) => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to edit dishes', 'error');
+      return;
+    }
+
     const updated = menuItems.map(m => (m.id === item.id ? item : m));
     setMenuItems(updated);
     await Storage.saveMenuItem(item);
@@ -881,6 +947,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteMenuItem = async (id: string) => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to delete dishes', 'error');
+      return;
+    }
+
     const target = menuItems.find(m => m.id === id);
     const updated = menuItems.filter(m => m.id !== id);
     setMenuItems(updated);
@@ -899,6 +970,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const bulkImportMenuItems = async (importedItems: MenuItem[]) => {
+    if (currentUser?.role === 'cashier') {
+      showToast('Permission Denied: Admin or Manager required to import dishes', 'error');
+      return;
+    }
+
     setMenuItems(importedItems);
     await Storage.saveBulkMenuItems(importedItems);
     await Storage.addAuditLog({
@@ -912,6 +988,11 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Settings & DB Safety
   const updateSettings = async (newSettings: HotelSettings) => {
+    if (currentUser?.role && currentUser.role !== 'admin') {
+      showToast('Permission Denied: Admin privilege required to change settings', 'error');
+      return;
+    }
+
     setSettings(newSettings);
     await Storage.saveSettings(newSettings);
     await Storage.addAuditLog({
@@ -924,22 +1005,42 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const downloadBackupJSON = async () => {
-    await Storage.downloadBackupJSON();
-    showToast('Full JSON backup downloaded', 'success');
-    refreshData();
+    try {
+      const res = await Storage.downloadBackupJSON();
+      showToast(`Backup completed successfully. Backup contains ${res.recordCount.toLocaleString('en-IN')} records.`, 'success');
+      await refreshData();
+    } catch (err: any) {
+      showToast(`Backup failed: ${err.message || 'Unknown error'}`, 'error');
+    }
   };
 
-  const restoreDatabase = async (jsonStr: string) => {
-    await Storage.restoreFromJSON(jsonStr);
-    await refreshData();
-    showToast('Complete Database restored successfully!', 'success');
+  const restoreDatabase = async (jsonStr: string): Promise<{ recordCount: number }> => {
+    if (currentUser?.role && currentUser.role !== 'admin') {
+      showToast('Permission Denied: Admin privilege required to restore database', 'error');
+      throw new Error('Admin privilege required');
+    }
+
+    try {
+      const res = await Storage.restoreFromJSON(jsonStr);
+      await refreshData();
+      showToast(`Restore completed successfully. ${res.recordCount.toLocaleString('en-IN')} records restored.`, 'success');
+      return res;
+    } catch (err: any) {
+      showToast(`Restore failed: ${err.message || 'Invalid or corrupted file'}`, 'error');
+      throw err;
+    }
   };
 
   const clearAllDatabaseData = async () => {
+    if (currentUser?.role && currentUser.role !== 'admin') {
+      showToast('Permission Denied: Admin privilege required to wipe database', 'error');
+      return;
+    }
+
     await Storage.clearAllData();
     await refreshData();
     clearCart();
-    showToast('All data cleared and reset to factory defaults', 'info');
+    showToast('All database records cleared and reset to factory defaults', 'info');
   };
 
   const sendWhatsAppBill = (bill: Bill, customPhone?: string) => {
@@ -1036,6 +1137,7 @@ export const BillingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         restoreDatabase,
         clearAllDatabaseData,
         refreshData,
+        isOnline,
         toasts,
         showToast,
         dismissToast,

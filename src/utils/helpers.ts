@@ -1,7 +1,12 @@
 import { HotelSettings } from '../types';
 
+export const roundMoney = (amount: number): number => {
+  return Math.round((Number(amount) || 0) * 100) / 100;
+};
+
 export const formatCurrency = (amount: number, symbol: string = '₹'): string => {
-  return `${symbol}${Number(amount || 0).toLocaleString('en-IN', {
+  const safe = roundMoney(amount);
+  return `${symbol}${safe.toLocaleString('en-IN', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

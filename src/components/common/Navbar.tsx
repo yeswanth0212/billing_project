@@ -19,7 +19,7 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenUserModal }) => {
-  const { activeTab, setActiveTab, settings, bills } = useBilling();
+  const { activeTab, setActiveTab, settings, bills, isOnline } = useBilling();
   const { currentUser } = useAuth();
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -41,10 +41,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenUserModal }) => {
       {/* Top Banner */}
       <div className="bg-teal-600 text-white px-4 py-1 text-xs flex items-center justify-between font-medium">
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 bg-teal-700/80 px-2.5 py-0.5 rounded-full text-[11px] text-teal-100 font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-            100% Offline IndexedDB
+          {/* Online / Offline Status Pill */}
+          {isOnline ? (
+            <span className="flex items-center gap-1.5 bg-teal-800/80 px-2.5 py-0.5 rounded-full text-[11px] text-emerald-200 font-bold border border-teal-500/40">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              🟢 Online
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 bg-amber-800/90 px-2.5 py-0.5 rounded-full text-[11px] text-amber-200 font-bold border border-amber-500/40">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              🟢 Working Offline
+            </span>
+          )}
+
+          <span className="hidden sm:inline-flex items-center gap-1 text-teal-100 text-[11px]">
+            <span className="font-semibold text-white">IndexedDB</span> Local Storage
           </span>
+
+          <span className="hidden md:inline text-teal-300">|</span>
           <span className="hidden md:inline text-teal-100">
             GSTIN: <span className="font-mono font-bold text-white">{settings.gstin}</span>
           </span>

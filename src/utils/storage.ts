@@ -1,4 +1,5 @@
 import { db, STORES, BackupData } from './db';
+import { storageService } from './storageService';
 import { 
   MenuItem, 
   Category, 
@@ -152,14 +153,13 @@ export const Storage = {
     return `KOT-${1000 + existingKotsCount + 1}`;
   },
 
-  // Backup Database -> Download JSON file
-  async downloadBackupJSON(): Promise<void> {
-    const backupData = await db.exportAllData();
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
+  // Backup Database -> Download JSON file with filename: hotel-billing-backup-YYYY-MM-DD.json
+  async downloadBackupJSON(): Promise<{ recordCount: number; fileName: string }> {
+    const { backup, recordCount, fileName } = await storageService.exportBackup();
+    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backup, null, 2));
     const a = document.createElement('a');
     a.href = dataStr;
-    const dateStamp = new Date().toISOString().slice(0, 10);
-    a.download = `HotelBilling_DB_Backup_${dateStamp}.json`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -173,29 +173,34 @@ export const Storage = {
       userId: 'system',
       userName: 'System',
       action: 'DATABASE_BACKUP',
-      details: `Full JSON Database backup exported (${backupData.data.bills.length} bills, ${backupData.data.menuItems.length} menu items)`,
+      details: `Full JSON Database backup exported to ${fileName} (${recordCount} total records)`,
     });
+
+    return { recordCount, fileName };
+  },
+
+  // Validate backup file before restore
+  validateBackup(jsonString: string) {
+    return storageService.validateBackup(jsonString);
   },
 
   // Restore Database from JSON string
-  async restoreFromJSON(jsonString: string): Promise<void> {
-    const parsed = JSON.parse(jsonString) as BackupData;
-    if (!parsed || !parsed.data) {
-      throw new Error('Invalid JSON format: Missing "data" root key.');
-    }
-    await db.importAllData(parsed);
+  async restoreFromJSON(jsonString: string): Promise<{ recordCount: number }> {
+    const result = await storageService.importBackup(jsonString);
 
     await this.addAuditLog({
       userId: 'system',
       userName: 'System',
       action: 'DATABASE_RESTORE',
-      details: `Database restored from backup dated ${parsed.exportedAt || 'unknown'}`,
+      details: `Database restored from backup (${result.recordCount} records imported)`,
     });
+
+    return result;
   },
 
   // Factory Reset Database
   async clearAllData(): Promise<void> {
-    await db.clearDatabase();
+    await storageService.clearAll();
     await this.addAuditLog({
       userId: 'system',
       userName: 'System',
@@ -205,7 +210,7 @@ export const Storage = {
   },
 
   async getStorageStats() {
-    return db.getStorageStats();
+    return storageService.getStats();
   },
 
   async requestPersistence(): Promise<boolean> {
@@ -216,3 +221,6 @@ export const Storage = {
     return db.isPersistenceGranted();
   },
 };
+
+export { storageService };
+
